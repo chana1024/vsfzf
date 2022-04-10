@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as net from 'net';
-import * as os from 'os';
-import * as cp from 'child_process';
+import * as cp from "child_process";
+import * as fs from "fs";
+import * as net from "net";
+import * as os from "os";
+import * as path from "path";
+import * as vscode from "vscode";
 
 let fzfTerminal: vscode.Terminal | undefined = undefined;
 let fzfTerminalPwd: vscode.Terminal | undefined = undefined;
@@ -23,309 +23,391 @@ export const TERMINAL_NAME = "fzf terminal";
 export const TERMINAL_NAME_PWD = "fzf pwd terminal";
 
 export enum rgoptions {
-	CaseSensitive = "Case sensitive",
-	IgnoreCase = "Ignore case",
-	SmartCase = "Smart case"
+  CaseSensitive = "Case sensitive",
+  IgnoreCase = "Ignore case",
+  SmartCase = "Smart case",
 }
 
 export const rgflagmap = new Map<string, string>([
-	[rgoptions.CaseSensitive, "--case-sensitive"],
-	[rgoptions.IgnoreCase, "--ignore-case"],
-	[rgoptions.SmartCase, "--smart-case"]
+  [rgoptions.CaseSensitive, "--case-sensitive"],
+  [rgoptions.IgnoreCase, "--ignore-case"],
+  [rgoptions.SmartCase, "--smart-case"],
 ]);
 
-function showFzfTerminal(name: string, fzfTerminal: vscode.Terminal | undefined): vscode.Terminal {
-	if (!fzfTerminal) {
-		// Look for an existing terminal
-		fzfTerminal = vscode.window.terminals.find((term) => { return term.name === name; });
-	}
-	if (!fzfTerminal) {
-		// Create an fzf terminal
-		if (!initialCwd && vscode.window.activeTextEditor) {
-			initialCwd = path.dirname(vscode.window.activeTextEditor.document.fileName);
-		}
-		initialCwd = initialCwd || '';
-		fzfTerminal = vscode.window.createTerminal({
-			cwd: initialCwd,
-			name: name
-		});
-	}
-	fzfTerminal.show();
-	return fzfTerminal;
+function showFzfTerminal(
+  name: string,
+  fzfTerminal: vscode.Terminal | undefined
+): vscode.Terminal {
+  if (!fzfTerminal) {
+    // Look for an existing terminal
+    fzfTerminal = vscode.window.terminals.find((term) => {
+      return term.name === name;
+    });
+    if (vscode.workspace.workspaceFolders !== undefined) {
+      fzfTerminal?.sendText(
+        "cd " + vscode.workspace.workspaceFolders[0].uri.fsPath
+      );
+    }
+  }
+  if (!fzfTerminal) {
+    // Create an fzf terminal
+    if (!initialCwd) {
+      if (vscode.workspace.workspaceFolders !== undefined) {
+        initialCwd = path.dirname(
+          vscode.workspace.workspaceFolders[0].uri.fsPath
+        );
+      } else if (vscode.window.activeTextEditor) {
+        initialCwd = path.dirname(
+          vscode.window.activeTextEditor.document.fileName
+        );
+      }
+    }
+    initialCwd = initialCwd || "";
+    fzfTerminal = vscode.window.createTerminal({
+      cwd: initialCwd,
+      name: name,
+    });
+  }
+  fzfTerminal.show();
+  return fzfTerminal;
 }
 
 function moveToPwd(term: vscode.Terminal) {
-	if (vscode.window.activeTextEditor) {
-		let cwd = path.dirname(vscode.window.activeTextEditor.document.fileName);
-		term.sendText(`cd ${cwd}`);
-	}
+  if (vscode.window.activeTextEditor) {
+    let cwd = path.dirname(vscode.window.activeTextEditor.document.fileName);
+    term.sendText(`cd ${cwd}`);
+  }
 }
 
 function applyConfig() {
-	let cfg = vscode.workspace.getConfiguration('fzf-quick-open');
-	fzfCmd = cfg.get('fuzzyCmd') as string ?? "fzf";
-	findCmd = cfg.get('findDirectoriesCmd') as string;
-	initialCwd = cfg.get('initialWorkingDirectory') as string;
-	let rgopt = cfg.get('ripgrepSearchStyle') as string;
-	rgFlags = (rgflagmap.get(rgopt) ?? "--case-sensitive") + ' ';
-	rgFlags += cfg.get('ripgrepOptions') as string ?? "";
-	rgFlags = rgFlags.trim();
-	if (isWindows()) {
-		let term = vscode.workspace.getConfiguration('terminal.integrated.shell').get('windows') as string;
+  let cfg = vscode.workspace.getConfiguration("fzf-quick-open");
+  fzfCmd = (cfg.get("fuzzyCmd") as string) ?? "fzf";
+  findCmd = cfg.get("findDirectoriesCmd") as string;
+  initialCwd = cfg.get("initialWorkingDirectory") as string;
+  let rgopt = cfg.get("ripgrepSearchStyle") as string;
+  rgFlags = (rgflagmap.get(rgopt) ?? "--case-sensitive") + " ";
+  rgFlags += (cfg.get("ripgrepOptions") as string) ?? "";
+  rgFlags = rgFlags.trim();
+  if (isWindows()) {
+    let term = vscode.workspace
+      .getConfiguration("terminal.integrated.shell")
+      .get("windows") as string;
 
-		// support for new terminal profiles
-		if (!term) {
-			let defaultTerm: string | undefined = vscode.workspace.getConfiguration('terminal.integrated.defaultProfile').get('windows');
-			if (!!defaultTerm) {
-				let profiles: any = vscode.workspace.getConfiguration('terminal.integrated.profiles').get('windows');
-				term = profiles?.[defaultTerm]?.path?.[0];
-			}
-		}
+    // support for new terminal profiles
+    if (!term) {
+      let defaultTerm: string | undefined = vscode.workspace
+        .getConfiguration("terminal.integrated.defaultProfile")
+        .get("windows");
+      if (!!defaultTerm) {
+        let profiles: any = vscode.workspace
+          .getConfiguration("terminal.integrated.profiles")
+          .get("windows");
+        term = profiles?.[defaultTerm]?.path?.[0];
+      }
+    }
 
-		let isWindowsCmd = (term?.toLowerCase().endsWith("cmd.exe") || term?.toLowerCase().endsWith("powershell.exe")) ?? false;
-		windowsNeedsEscape = !isWindowsCmd;
-		// CMD doesn't support single quote.
-		fzfQuote = isWindowsCmd ? '"' : "'";
-	}
+    let isWindowsCmd =
+      (term?.toLowerCase().endsWith("cmd.exe") ||
+        term?.toLowerCase().endsWith("powershell.exe")) ??
+      false;
+    windowsNeedsEscape = !isWindowsCmd;
+    // CMD doesn't support single quote.
+    fzfQuote = isWindowsCmd ? '"' : "'";
+  }
 }
 
 function isWindows() {
-	return process.platform === 'win32';
+  return process.platform === "win32";
 }
 
 function getPath(arg: string, pwd: string): string | undefined {
-	if (!path.isAbsolute(arg)) {
-		arg = path.join(pwd, arg);
-	}
-	if (fs.existsSync(arg)) {
-		return arg;
-	} else {
-		return undefined;
-	}
+  if (!path.isAbsolute(arg)) {
+    arg = path.join(pwd, arg);
+  }
+  if (fs.existsSync(arg)) {
+    return arg;
+  } else {
+    return undefined;
+  }
 }
 
 function escapeWinPath(origPath: string) {
-	if (isWindows() && windowsNeedsEscape) {
-		return origPath?.replace(/\\/g, '\\\\');
-	} else {
-		return origPath;
-	}
+  if (isWindows() && windowsNeedsEscape) {
+    return origPath?.replace(/\\/g, "\\\\");
+  } else {
+    return origPath;
+  }
 }
 
 function getFzfCmd() {
-	return fzfCmd;
+  return fzfCmd;
 }
 
 function getCodeOpenFileCmd() {
-	return`${getFzfCmd()} | ${getFzfPipeScript()} open ${getFzfPipe()}`;
+  return `${getFzfCmd()} | ${getFzfPipeScript()} open ${getFzfPipe()}`;
 }
 
 function getCodeOpenFolderCmd() {
-	return `${getFzfCmd()} | ${getFzfPipeScript()} add ${getFzfPipe()}`;
+  return `${getFzfCmd()} | ${getFzfPipeScript()} add ${getFzfPipe()}`;
 }
 
 function getFindCmd() {
-	return findCmd;
+  return findCmd;
 }
 
 function getFzfPipe() {
-	let res = fzfPipe;
-	if (res) {
-		res = escapeWinPath(res);
-	}
-	return res;
+  let res = fzfPipe;
+  if (res) {
+    res = escapeWinPath(res);
+  }
+  return res;
 }
 
 function getFzfPipeScript() {
-	return escapeWinPath(fzfPipeScript);
+  return escapeWinPath(fzfPipeScript);
 }
 
 function getQuote() {
-	return fzfQuote;
+  return fzfQuote;
 }
 
 function processCommandInput(data: Buffer) {
-	let [cmd, pwd, arg] = data.toString().trim().split('$$');
-	cmd = cmd.trim(); pwd = pwd.trim(); arg = arg.trim();
-	if (arg === "") { return }
-	if (cmd === 'open') {
-		let filename = getPath(arg, pwd);
-		if (!filename) { return }
-		vscode.window.showTextDocument(vscode.Uri.file(filename));
-	} else if (cmd === 'add') {
-		let folder = getPath(arg, pwd);
-		if (!folder) { return }
-		vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders ? vscode.workspace.workspaceFolders.length : 0, null, {
-			uri: vscode.Uri.file(folder)
-		});
-		vscode.commands.executeCommand('workbench.view.explorer');
-	} else if (cmd === 'rg') {
-		let [file, linestr, colstr] = arg.split(':');
-		let filename = getPath(file, pwd);
-		if (!filename) { return };
-		let line = parseInt(linestr) - 1;
-		let col = parseInt(colstr) - 1;
-		vscode.window.showTextDocument(vscode.Uri.file(filename)).then((ed) => {
-			let start = new vscode.Position(line, col);
-			ed.selection = new vscode.Selection(start, start);
-			ed.revealRange(new vscode.Range(start, start));
-		})
-	}
+  let [cmd, pwd, arg] = data.toString().trim().split("$$");
+  cmd = cmd.trim();
+  pwd = pwd.trim();
+  arg = arg.trim();
+  if (arg === "") {
+    return;
+  }
+  if (cmd === "open") {
+    let filename = getPath(arg, pwd);
+    if (!filename) {
+      return;
+    }
+    vscode.window.showTextDocument(vscode.Uri.file(filename));
+  } else if (cmd === "add") {
+    let folder = getPath(arg, pwd);
+    if (!folder) {
+      return;
+    }
+    vscode.workspace.updateWorkspaceFolders(
+      vscode.workspace.workspaceFolders
+        ? vscode.workspace.workspaceFolders.length
+        : 0,
+      null,
+      {
+        uri: vscode.Uri.file(folder),
+      }
+    );
+    vscode.commands.executeCommand("workbench.view.explorer");
+  } else if (cmd === "rg") {
+    let [file, linestr, colstr] = arg.split(":");
+    let filename = getPath(file, pwd);
+    if (!filename) {
+      return;
+    }
+    let line = parseInt(linestr) - 1;
+    let col = parseInt(colstr) - 1;
+    vscode.window.showTextDocument(vscode.Uri.file(filename)).then((ed) => {
+      let start = new vscode.Position(line, col);
+      ed.selection = new vscode.Selection(start, start);
+      ed.revealRange(new vscode.Range(start, start));
+    });
+  }
 }
 
 function listenToFifo(fifo: string) {
-	fs.open(fifo, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK , (err, fd) => {
-		const pipe = new net.Socket({fd: fd, allowHalfOpen: true });
-		pipe.on('data', (data) => {
-			processCommandInput(data);
-		})
-		pipe.on('end', () => {
-			listenToFifo(fifo);
-		})
-	})
+  fs.open(fifo, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK, (err, fd) => {
+    const pipe = new net.Socket({ fd: fd, allowHalfOpen: true });
+    pipe.on("data", (data) => {
+      processCommandInput(data);
+    });
+    pipe.on("end", () => {
+      listenToFifo(fifo);
+    });
+  });
 }
 
 function setupWindowsPipe() {
-	let server = net.createServer((socket) => {
-		socket.on('data', (data) => {
-			processCommandInput(data);
-		})
-	});
-	let idx = 0;
-	while (!fzfPipe) {
-		try {
-			let pipe = `\\\\?\\pipe\\fzf-pipe-${process.pid}`;
-			if (idx > 0) { pipe += `-${idx}`; }
-			server.listen(pipe);
-			fzfPipe = pipe;
-		} catch (e: any) {
-			if (e.code === 'EADDRINUSE') {
-				// Try again for a new address
-				++idx;
-			} else {
-				// Bad news
-				throw e;
-			}
-		}
-	}
+  let server = net.createServer((socket) => {
+    socket.on("data", (data) => {
+      processCommandInput(data);
+    });
+  });
+  let idx = 0;
+  while (!fzfPipe) {
+    try {
+      let pipe = `\\\\?\\pipe\\fzf-pipe-${process.pid}`;
+      if (idx > 0) {
+        pipe += `-${idx}`;
+      }
+      server.listen(pipe);
+      fzfPipe = pipe;
+    } catch (e: any) {
+      if (e.code === "EADDRINUSE") {
+        // Try again for a new address
+        ++idx;
+      } else {
+        // Bad news
+        throw e;
+      }
+    }
+  }
 }
 
 function setupPOSIXPipe() {
-	let idx = 0;
-	while (!fzfPipe && idx < 10) {
-		try {
-			let pipe = path.join(os.tmpdir(), `fzf-pipe-${process.pid}`);
-			if (idx > 0) { pipe += `-${idx}`; }
-			cp.execSync(`mkfifo -m 600 ${pipe}`);
-			fzfPipe = pipe;
-		} catch (e) {
-			// Try again for a new address
-			++idx;
-		}
-	}
-	listenToFifo(fzfPipe as string);
+  let idx = 0;
+  while (!fzfPipe && idx < 10) {
+    try {
+      let pipe = path.join(os.tmpdir(), `fzf-pipe-${process.pid}`);
+      if (idx > 0) {
+        pipe += `-${idx}`;
+      }
+      cp.execSync(`mkfifo -m 600 ${pipe}`);
+      fzfPipe = pipe;
+    } catch (e) {
+      // Try again for a new address
+      ++idx;
+    }
+  }
+  listenToFifo(fzfPipe as string);
 }
 
 function setupPipesAndListeners() {
-	if (isWindows()) {
-		setupWindowsPipe();
-	} else {
-		setupPOSIXPipe();
-	}
+  if (isWindows()) {
+    setupWindowsPipe();
+  } else {
+    setupPOSIXPipe();
+  }
 }
 
 export function activate(context: vscode.ExtensionContext) {
-	applyConfig();
-	setupPipesAndListeners();
-	fzfPipeScript = vscode.extensions.getExtension('rlivings39.fzf-quick-open')?.extensionPath ?? "";
-	fzfPipeScript = path.join(fzfPipeScript, 'scripts', 'topipe.' + (isWindows() ? "bat" : "sh"));
-	vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration('fzf-quick-open')  || e.affectsConfiguration('terminal.integrated.shell.windows')) {
-			applyConfig();
-		}
-	})
+  applyConfig();
+  setupPipesAndListeners();
+  fzfPipeScript =
+    vscode.extensions.getExtension("rlivings39.fzf-quick-open")
+      ?.extensionPath ?? "";
+  fzfPipeScript = path.join(
+    fzfPipeScript,
+    "scripts",
+    "topipe." + (isWindows() ? "bat" : "sh")
+  );
+  vscode.workspace.onDidChangeConfiguration((e) => {
+    if (
+      e.affectsConfiguration("fzf-quick-open") ||
+      e.affectsConfiguration("terminal.integrated.shell.windows")
+    ) {
+      applyConfig();
+    }
+  });
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfFile', () => {
-		let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
-		term.sendText(getCodeOpenFileCmd(), true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand("fzf-quick-open.runFzfFile", () => {
+      let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
+      term.sendText(getCodeOpenFileCmd(), true);
+    })
+  );
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfFilePwd', () => {
-		let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
-		moveToPwd(term);
-		term.sendText(getCodeOpenFileCmd(), true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand("fzf-quick-open.runFzfFilePwd", () => {
+      let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
+      moveToPwd(term);
+      term.sendText(getCodeOpenFileCmd(), true);
+    })
+  );
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfAddWorkspaceFolder', () => {
-		let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
-		term.sendText(`${getFindCmd()} | ${getCodeOpenFolderCmd()}`, true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "fzf-quick-open.runFzfAddWorkspaceFolder",
+      () => {
+        let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
+        term.sendText(`${getFindCmd()} | ${getCodeOpenFolderCmd()}`, true);
+      }
+    )
+  );
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfAddWorkspaceFolderPwd', () => {
-		let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
-		moveToPwd(term);
-		term.sendText(`${getFindCmd()} | ${getCodeOpenFolderCmd()}`, true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "fzf-quick-open.runFzfAddWorkspaceFolderPwd",
+      () => {
+        let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
+        moveToPwd(term);
+        term.sendText(`${getFindCmd()} | ${getCodeOpenFolderCmd()}`, true);
+      }
+    )
+  );
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfSearch', async () => {
-		let pattern = await getSearchText();
-		if (pattern === undefined) {
-			return;
-		}
-		let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
-		term.sendText(makeSearchCmd(pattern), true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand("fzf-quick-open.runFzfSearch", async () => {
+      let pattern = await getSearchText();
+      if (pattern === undefined) {
+        return;
+      }
+      let term = showFzfTerminal(TERMINAL_NAME, fzfTerminal);
+      term.sendText(makeSearchCmd(pattern), true);
+    })
+  );
 
-	context.subscriptions.push(vscode.commands.registerCommand('fzf-quick-open.runFzfSearchPwd', async () => {
-		let pattern = await getSearchText();
-		if (pattern === undefined) {
-			return;
-		}
-		let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
-		moveToPwd(term);
-		term.sendText(makeSearchCmd(pattern), true);
-	}));
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "fzf-quick-open.runFzfSearchPwd",
+      async () => {
+        let pattern = await getSearchText();
+        if (pattern === undefined) {
+          return;
+        }
+        let term = showFzfTerminal(TERMINAL_NAME_PWD, fzfTerminalPwd);
+        moveToPwd(term);
+        term.sendText(makeSearchCmd(pattern), true);
+      }
+    )
+  );
 
-	vscode.window.onDidCloseTerminal((terminal) => {
-		switch (terminal.name) {
-			case TERMINAL_NAME:
-				fzfTerminal = undefined;
-				break;
+  vscode.window.onDidCloseTerminal((terminal) => {
+    switch (terminal.name) {
+      case TERMINAL_NAME:
+        fzfTerminal = undefined;
+        break;
 
-			case TERMINAL_NAME_PWD:
-				fzfTerminalPwd = undefined
-				break;
-		}
-	});
+      case TERMINAL_NAME_PWD:
+        fzfTerminalPwd = undefined;
+        break;
+    }
+  });
 }
 
 async function getSearchText(): Promise<string | undefined> {
-	let activeSelection = vscode.window.activeTextEditor?.selection;
-	let value: string | undefined = undefined;
+  let activeSelection = vscode.window.activeTextEditor?.selection;
+  let value: string | undefined = undefined;
 
-	if (activeSelection) {
-		let activeRange: vscode.Range | undefined;
-		if (activeSelection.isEmpty) {
-			activeRange = vscode.window.activeTextEditor?.document.getWordRangeAtPosition(activeSelection.active);
-		} else {
-			activeRange = activeSelection;
-		}
-		value = activeRange ? vscode.window.activeTextEditor?.document.getText(activeRange) : undefined
-	}
-	// #33: Make default search more useful
-	value = value || ".*";
-	let pattern = await vscode.window.showInputBox({
-		prompt: "Search pattern",
-		value: value
-	});
-	return pattern;
+  if (activeSelection) {
+    let activeRange: vscode.Range | undefined;
+    if (activeSelection.isEmpty) {
+      activeRange =
+        vscode.window.activeTextEditor?.document.getWordRangeAtPosition(
+          activeSelection.active
+        );
+    } else {
+      activeRange = activeSelection;
+    }
+    value = activeRange
+      ? vscode.window.activeTextEditor?.document.getText(activeRange)
+      : undefined;
+  }
+  // #33: Make default search more useful
+  value = value || ".*";
+  let pattern = await vscode.window.showInputBox({
+    prompt: "Search pattern",
+    value: value,
+  });
+  return pattern;
 }
 
 export function deactivate() {
-	if (!isWindows() && fzfPipe) {
-		fs.unlinkSync(fzfPipe);
-		fzfPipe = undefined;
-	}
+  if (!isWindows() && fzfPipe) {
+    fs.unlinkSync(fzfPipe);
+    fzfPipe = undefined;
+  }
 }
 
 /**
@@ -333,6 +415,6 @@ export function deactivate() {
  * @param pattern Pattern to search for
  */
 export function makeSearchCmd(pattern: string): string {
-	let q = getQuote();
-	return `rg ${q}${pattern}${q} ${rgFlags} --vimgrep --color ansi | ${getFzfCmd()} --ansi | ${getFzfPipeScript()} rg "${getFzfPipe()}"`;
+  let q = getQuote();
+  return `rg ${q}${pattern}${q} ${rgFlags} --vimgrep --color ansi | ${getFzfCmd()} --ansi | ${getFzfPipeScript()} rg "${getFzfPipe()}"`;
 }
