@@ -5,4 +5,4 @@
 ### fixed
 
 - modify readme.md
-- resolve can't find the script/xx
+- resolve the problem of the script/xx not be found
