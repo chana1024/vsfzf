@@ -43,11 +43,6 @@ function showFzfTerminal(
     fzfTerminal = vscode.window.terminals.find((term) => {
       return term.name === name;
     });
-    if (vscode.workspace.workspaceFolders !== undefined) {
-      fzfTerminal?.sendText(
-        "cd " + vscode.workspace.workspaceFolders[0].uri.fsPath
-      );
-    }
   }
   if (!fzfTerminal) {
     // Create an fzf terminal
@@ -69,6 +64,11 @@ function showFzfTerminal(
     });
   }
   fzfTerminal.show();
+  if (vscode.workspace.workspaceFolders !== undefined) {
+    fzfTerminal?.sendText(
+      "cd " + vscode.workspace.workspaceFolders[0].uri.fsPath
+    );
+  }
   return fzfTerminal;
 }
 
@@ -80,7 +80,7 @@ function moveToPwd(term: vscode.Terminal) {
 }
 
 function applyConfig() {
-  let cfg = vscode.workspace.getConfiguration("fzf-quick-open");
+  let cfg = vscode.workspace.getConfiguration("vsfzf");
   fzfCmd = (cfg.get("fuzzyCmd") as string) ?? "fzf";
   findCmd = cfg.get("findDirectoriesCmd") as string;
   initialCwd = cfg.get("initialWorkingDirectory") as string;
@@ -285,8 +285,7 @@ export function activate(context: vscode.ExtensionContext) {
   applyConfig();
   setupPipesAndListeners();
   fzfPipeScript =
-    vscode.extensions.getExtension("rlivings39.fzf-quick-open")
-      ?.extensionPath ?? "";
+    vscode.extensions.getExtension("lzn.vsfzf")?.extensionPath ?? "";
   fzfPipeScript = path.join(
     fzfPipeScript,
     "scripts",
@@ -294,7 +293,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
   vscode.workspace.onDidChangeConfiguration((e) => {
     if (
-      e.affectsConfiguration("fzf-quick-open") ||
+      e.affectsConfiguration("vsfzf") ||
       e.affectsConfiguration("terminal.integrated.shell.windows")
     ) {
       applyConfig();

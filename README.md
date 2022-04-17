@@ -1,27 +1,32 @@
-[![Build Status](https://travis-ci.com/rlivings39/vscode-fzf-quick-open.svg?branch=master)](https://travis-ci.com/rlivings39/vscode-fzf-quick-open)
-[![Marketplace](https://vsmarketplacebadge.apphb.com/version-short/rlivings39.fzf-quick-open.svg)](https://marketplace.visualstudio.com/items?itemName=rlivings39.fzf-quick-open)
-[![Installs](https://vsmarketplacebadge.apphb.com/installs-short/rlivings39.fzf-quick-open.svg)](https://marketplace.visualstudio.com/items?itemName=rlivings39.fzf-quick-open)
-[![Rating](https://vsmarketplacebadge.apphb.com/rating-short/rlivings39.fzf-quick-open.svg)](https://marketplace.visualstudio.com/items?itemName=rlivings39.fzf-quick-open&ssr=false#review-details)
+[![Marketplace](https://vsmarketplacebadge.apphb.com/version-short/lzn.vsfzf.svg)](https://marketplace.visualstudio.com/items?itemName=lzn.vsfzf)
+[![Installs](https://vsmarketplacebadge.apphb.com/installs-short/lzn.vsfzf.svg)](https://marketplace.visualstudio.com/items?itemName=lzn.vsfzf)
+[![Rating](https://vsmarketplacebadge.apphb.com/rating-short/lzn.vsfzf.svg)](https://marketplace.visualstudio.com/items?itemName=lzn.vsfzf&ssr=false#review-details)
+
+# extend "fzf fuzzy quick open",thakns rlivings39!!
+
+- set the initialWorkingDirectory to the root path of workspace
 
 # fzf-based fuzzy searching in VScode to open files/folders and filter ripgrep results
+
 Any time that vscode requires interaction with the OS file dialog, the workflow can become much less efficient. This comes up when opening files outside of your workspace folders or adding a workspace folder. This extension solves that by providing these actions using [fzf](https://github.com/junegunn/fzf).
 
 Provides an interface to search using `ripgrep` and browse the results using `fzf`. This is inspired by Vim's `rg` and `fzf` integration. The search pattern defaults to the word under your cursor or your current selection and is easily overridden.
 
-Works on *nix, Mac, and Windows. Tested with CMD, PowerShell, and Git Bash on Windows.
+Works on \*nix, Mac, and Windows. Tested with CMD, PowerShell, and Git Bash on Windows.
 
 # Usage
+
 Provides the commands:
 
-* `fzf: Search using rg and fzf` to search using `fzf` and `ripgrep`
-* `fzf: Open file using fzf` opens a terminal in which you can choose a file
-* `fzf: Add workspace folder using fzf` to add a workspace folder
+- `fzf: Search using rg and fzf` to search using `fzf` and `ripgrep`
+- `fzf: Open file using fzf` opens a terminal in which you can choose a file
+- `fzf: Add workspace folder using fzf` to add a workspace folder
 
 On terminal launch, the `pwd` is chosen based on the active editor file. Also adds
 
-* `fzf: Search in PWD using rg and fzf`
-* `fzf: Open file in PWD using fzf`
-* `fzf: Add workspace folder from PWD using fzf`
+- `fzf: Search in PWD using rg and fzf`
+- `fzf: Open file in PWD using fzf`
+- `fzf: Add workspace folder from PWD using fzf`
 
 which are the same as above but switches to parent directory of active file on every invocation.
 
@@ -35,9 +40,9 @@ By default `fzf` is used as the fuzzy matcher command. To change this to add fla
 
 To change the `rg` case matching options use the setting `fzf-quick-open.ripgrepSearchStyle` to choose between:
 
-* Case sensitive
-* Ignore case
-* Smart case
+- Case sensitive
+- Ignore case
+- Smart case
 
 To pass other flags to `rg` add them to `fzf-quick-open.ripgrepOptions`.
 
@@ -47,21 +52,22 @@ To pass other flags to `rg` add them to `fzf-quick-open.ripgrepOptions`.
 1. [Install ripgrep](https://github.com/BurntSushi/ripgrep)
 1. For best performance you should set up `fzf` to use the amazingly fast [fd](https://github.com/sharkdp/fd)
 
-    **`~/.config/fish/config.fish`**
+   **`~/.config/fish/config.fish`**
 
-    ```fish
-    set --universal FZF_DEFAULT_COMMAND 'fd'
-    ```
+   ```fish
+   set --universal FZF_DEFAULT_COMMAND 'fd'
+   ```
 
-    **`~/.bashrc`**
+   **`~/.bashrc`**
 
-    ```bash
-    echo "export FZF_DEFAULT_COMMAND='fd'" >> ~/.bashrc
-    ```
+   ```bash
+   echo "export FZF_DEFAULT_COMMAND='fd'" >> ~/.bashrc
+   ```
 
 1. Configure the setting `fzf-quick-open.findDirectoriesCmd` to use `fd`: `fd --type d`
 
 # Examples
+
 **Search with ripgrep**
 ![Search with rg and fzf](resources/fzfVscodeRg.gif)
 
@@ -70,4 +76,3 @@ To pass other flags to `rg` add them to `fzf-quick-open.ripgrepOptions`.
 
 **Open workspace folder**
 ![Add workspace folder with fzf](resources/fzfVscodeOpenFolder.gif)
-
